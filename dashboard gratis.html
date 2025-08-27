@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard Financeiro - Exporta para Excel</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Roboto', sans-serif; }
+    body { background: linear-gradient(135deg, #0f0f0f, #1a1a1a); color: #e0e0e0; line-height: 1.7; }
+    header { background: #121212; padding: 1.5rem 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-bottom: 3px solid #D4AF37; }
+    header h1 { font-size: 2rem; font-weight: 700; color: #D4AF37; text-shadow: 0 0 10px rgba(212, 175, 55, 0.3); }
+    header p { font-size: 0.95rem; color: #b0b0b0; }
+    .container { max-width: 1600px; margin: 1.5rem auto; padding: 0 1rem; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tab { padding: 0.85rem 1.75rem; background: #1e1e1e; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; border: 1px solid #333; }
+    .tab.active { background: #D4AF37; color: #0a0a0a; box-shadow: 0 0 15px rgba(212, 175, 55, 0.4); }
+    .card { background: #1e1e1e; border-radius: 12px; box-shadow: 0 6px 15px rgba(0,0,0,0.3); padding: 1.75rem; margin-bottom: 1.5rem; border: 1px solid #333; position: relative; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: #D4AF37; border-radius: 8px 8px 0 0; }
+    .form-group { margin-bottom: 1.25rem; position: relative; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.6rem; color: #D4AF37; font-size: 0.95rem; }
+    .form-control { width: 100%; padding: 0.9rem 1rem; border: 1px solid #444; border-radius: 8px; font-size: 1rem; background: #2a2a2a; color: #fff; transition: all 0.3s; }
+    .form-control:focus { outline: none; border-color: #D4AF37; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2); }
+    .btn { padding: 0.85rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+    .btn-primary { background: linear-gradient(90deg, #D4AF37, #F9E076); color: #0a0a0a; font-weight: 700; }
+    .btn-success { background: #1DB954; color: white; }
+    .btn-danger { background: #e53935; color: white; }
+    .table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    .table th, .table td { padding: 0.9rem 0.75rem; text-align: left; border-bottom: 1px solid #333; }
+    .table th { background: #2a2a2a; font-weight: 600; color: #D4AF37; font-size: 0.95rem; }
+    .table tr:hover { background: #2a2a2a; }
+    .flex { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .justify-end { justify-content: flex-end; }
+    .mt-4 { margin-top: 1.5rem; }
+    .grid { display: grid; gap: 1.5rem; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1.8fr 1fr; }
+    .chart-container { height: 320px; position: relative; }
+    .summary-box { text-align: center; padding: 1.5rem; border-radius: 10px; background: #2a2a2a; border: 1px solid #444; }
+    .summary-total { font-size: 2rem; font-weight: 700; color: #D4AF37; margin: 0.5rem 0; }
+    .summary-label { font-size: 0.95rem; color: #b0b0b0; }
+    footer { text-align: center; padding: 2rem; color: #777; font-size: 0.9rem; margin-top: 2rem; border-top: 1px solid #333; }
+    .powerbi-badge { background: #D4AF37; color: #0a0a0a; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .tabs { justify-content: center; }
+      header h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📊 Dashboard Financeiro</h1>
+    <p>Salva automaticamente em CSV para Excel | <span class="powerbi-badge">Fácil & Direto</span></p>
+  </header>
+
+  <div class="container">
+    <div class="tabs">
+      <div class="tab active" data-tab="financeiro">💰 Financeiro</div>
+      <div class="tab" data-tab="clientes">👥 Clientes</div>
+      <div class="tab" data-tab="graficos">📈 Análise</div>
+    </div>
+
+    <!-- Aba: Financeiro -->
+    <div id="financeiro" class="content">
+      <div class="grid grid-2">
+        <div>
+          <div class="card">
+            <h2 style="color:#D4AF37; margin-bottom:1.5rem;">➕ Registrar Movimentação</h2>
+            <form id="transaction-form">
+              <div class="form-group">
+                <label>Data</label>
+                <input type="date" id="date" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label>Tipo</label>
+                <select id="type" class="form-control" required>
+                  <option value="entrada">🟢 Entrada (Receita)</option>
+                  <option value="saida">🔴 Saída (Despesa)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Descrição</label>
+                <input type="text" id="description" class="form-control" placeholder="Ex: Venda de produto, aluguel" required>
+              </div>
+              <div class="form-group">
+                <label>Valor (R$)</label>
+                <input type="number" id="amount" class="form-control" step="0.01" min="0" placeholder="0,00" required>
+              </div>
+              <div class="form-group">
+                <label>Categoria</label>
+                <select id="category" class="form-control" required>
+                  <option value="">Selecione</option>
+                  <optgroup label="Entradas">
+                    <option value="venda">Venda de Produtos</option>
+                    <option value="servico">Prestação de Serviços</option>
+                    <option value="investimento">Retorno de Investimento</option>
+                    <option value="outro">Outros</option>
+                  </optgroup>
+                  <optgroup label="Saídas">
+                    <option value="compra">Compra de Produtos</option>
+                    <option value="aluguel">Aluguel</option>
+                    <option value="salario">Salários</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="energia">Energia/Água</option>
+                    <option value="outro">Outros</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="flex justify-end mt-4">
+                <button type="submit" class="btn btn-primary">Registrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2 style="color:#D4AF37; margin-bottom:1.5rem;">📌 Resumo do Mês</h2>
+            <div class="grid grid-3" style="margin-top: 1.5rem;">
+              <div class="summary-box">
+                <div class="summary-label">Faturamento Bruto</div>
+                <div class="summary-total" id="total-receitas">R$ 0,00</div>
+              </div>
+              <div class="summary-box">
+                <div class="summary-label">Total de Despesas</div>
+                <div class="summary-total" id="total-despesas">R$ 0,00</div>
+              </div>
+              <div class="summary-box">
+                <div class="summary-label">Lucro Líquido</div>
+                <div class="summary-total" id="lucro-liquido">R$ 0,00</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2 style="color:#D4AF37; margin-bottom:1rem;">📋 Movimentações</h2>
+            <input type="text" id="search-finance" class="form-control mb-3" placeholder="Buscar...">
+            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Descrição</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody id="transaction-list"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba: Clientes -->
+    <div id="clientes" class="content" style="display:none;">
+      <div class="grid grid-3">
+        <div>
+          <div class="card">
+            <h2 style="color:#D4AF37; margin-bottom:1.5rem;">➕ Cadastrar Cliente</h2>
+            <form id="client-form">
+              <div class="form-group">
+                <label>Nome</label>
+                <input type="text" id="nome" class="form-control" required />
+              </div>
+              <div class="form-group">
+                <label>Estado Civil</label>
+                <select id="estadoCivil" class="form-control" required>
+                  <option value="">Selecione</option>
+                  <option value="Solteiro">Solteiro</option>
+                  <option value="Casado">Casado</option>
+                  <option value="Divorciado">Divorciado</option>
+                  <option value="Viúvo">Viúvo</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Número de Filhos</label>
+                <input type="number" id="filhos" class="form-control" min="0" />
+              </div>
+              <div class="form-group">
+                <label>Escolaridade</label>
+                <select id="escolaridade" class="form-control" required>
+                  <option value="">Selecione</option>
+                  <option value="Ensino Fundamental">Ensino Fundamental</option>
+                  <option value="Ensino Médio">Ensino Médio</option>
+                  <option value="Superior Incompleto">Superior Incompleto</option>
+                  <option value="Superior Completo">Superior Completo</option>
+                  <option value="Pós-graduação">Pós-graduação</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="temCartao" /> Tem Cartão de Crédito?
+                </label>
+              </div>
+              <div class="form-group">
+                <label>Renda Bruta (R$)</label>
+                <input type="number" id="rendaBruta" class="form-control" required />
+              </div>
+              <div class="form-group">
+                <label>Idade</label>
+                <input type="number" id="idade" class="form-control" required min="18" />
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="eComprador" /> Já é Comprador?
+                </label>
+              </div>
+              <div class="form-group">
+                <label>Quantidade de Compras</label>
+                <input type="number" id="frequenciaCompras" class="form-control" min="0" />
+              </div>
+              <div class="form-group">
+                <label>Tipo de Compra</label>
+                <select id="tipoCompra" class="form-control" required>
+                  <option value="">Selecione</option>
+                  <option value="Básico">Básico</option>
+                  <option value="Frequente">Frequente</option>
+                  <option value="Premium">Premium</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Onde Encontrou?</label>
+                <select id="ondeEncontrou" class="form-control" required>
+                  <option value="">Selecione</option>
+                  <option value="Amigo">Indicação de Amigo</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Google">Google</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+              <div class="flex justify-end mt-4">
+                <button type="submit" class="btn btn-primary">Cadastrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2 style="color:#D4AF37; margin-bottom:1rem;">📋 Clientes Cadastrados</h2>
+            <input type="text" id="search-client" class="form-control mb-3" placeholder="Buscar cliente..." />
+            <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Idade</th>
+                    <th>Renda</th>
+                    <th>Compras</th>
+                  </tr>
+                </thead>
+                <tbody id="client-list"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba: Gráficos -->
+    <div id="graficos" class="content" style="display:none;">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2 style="color:#D4AF37;">📊 Receitas vs Despesas</h2>
+          <div class="chart-container">
+            <canvas id="revenueChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="color:#D4AF37;">📈 Lucro Acumulado</h2>
+          <div class="chart-container">
+            <canvas id="profitChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="color:#D4AF37;">👥 Perfis de Clientes</h2>
+          <div class="chart-container">
+            <canvas id="clusterChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="color:#D4AF37;">🔍 Canais de Aquisição</h2>
+          <div class="chart-container">
+            <canvas id="channelChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="color:#D4AF37;">💾 Exportar para Excel (CSV)</h2>
+        <p style="color:#b0b0b0; margin: 0.5rem 0;">Clique nos botões para baixar os dados como CSV (abre no Excel).</p>
+        <div class="flex mt-3">
+          <button id="export-finance" class="btn btn-success" style="flex:1; margin-right: 0.5rem;">
+            💰 Baixar Finanças (CSV)
+          </button>
+          <button id="export-client" class="btn btn-primary" style="flex:1; margin-left: 0.5rem;">
+            👥 Baixar Clientes (CSV)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Dashboard Financeiro © 2025 | Dados salvos localmente. Exporte para Excel com 1 clique.
+  </footer>
+
+  <script>
+    // Dados locais
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    let clients = JSON.parse(localStorage.getItem('clients')) || [];
+
+    // Formulário de transação
+    document.getElementById('transaction-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const data = {
+        date: document.getElementById('date').value,
+        type: document.getElementById('type').value,
+        description: document.getElementById('description').value,
+        amount: document.getElementById('amount').value,
+        category: document.getElementById('category').value
+      };
+
+      transactions.push(data);
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+      document.getElementById('transaction-form').reset();
+      renderTransactions();
+      updateFinancialSummary();
+      updateCharts();
+    });
+
+    function renderTransactions() {
+      const list = document.getElementById('transaction-list');
+      const search = document.getElementById('search-finance').value.toLowerCase();
+      const filtered = transactions.filter(t => 
+        t.description.toLowerCase().includes(search)
+      ).slice(-10).reverse();
+
+      list.innerHTML = filtered.map(t => `
+        <tr>
+          <td>${formatDate(t.date)}</td>
+          <td>${t.description}</td>
+          <td><span style="color: ${t.type === 'entrada' ? '#1DB954' : '#e53935'};">${t.type === 'entrada' ? 'Entrada' : 'Saída'}</span></td>
+          <td>R$ ${parseFloat(t.amount).toLocaleString('pt-BR')}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Clientes
+    document.getElementById('client-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const data = {
+        nome: document.getElementById('nome').value,
+        estadoCivil: document.getElementById('estadoCivil').value,
+        filhos: document.getElementById('filhos').value,
+        escolaridade: document.getElementById('escolaridade').value,
+        temCartao: document.getElementById('temCartao').checked,
+        rendaBruta: document.getElementById('rendaBruta').value,
+        idade: document.getElementById('idade').value,
+        eComprador: document.getElementById('eComprador').checked,
+        frequenciaCompras: document.getElementById('frequenciaCompras').value,
+        tipoCompra: document.getElementById('tipoCompra').value,
+        ondeEncontrou: document.getElementById('ondeEncontrou').value
+      };
+
+      clients.push(data);
+      localStorage.setItem('clients', JSON.stringify(clients));
+      document.getElementById('client-form').reset();
+      renderClientList();
+      updateCharts();
+    });
+
+    function renderClientList() {
+      const list = document.getElementById('client-list');
+      const search = document.getElementById('search-client').value.toLowerCase();
+      const filtered = clients.filter(c => c.nome.toLowerCase().includes(search));
+      list.innerHTML = filtered.map(c => `
+        <tr>
+          <td>${c.nome}</td>
+          <td>${c.idade}</td>
+          <td>R$ ${parseFloat(c.rendaBruta).toLocaleString('pt-BR')}</td>
+          <td>${c.frequenciaCompras}</td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('search-client').addEventListener('input', renderClientList);
+    document.getElementById('search-finance').addEventListener('input', renderTransactions);
+
+    // Resumo financeiro
+    function updateFinancialSummary() {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const monthly = transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+      });
+
+      const receitas = monthly.filter(t => t.type === 'entrada').reduce((a,b) => a + parseFloat(b.amount), 0);
+      const despesas = monthly.filter(t => t.type === 'saida').reduce((a,b) => a + parseFloat(b.amount), 0);
+      const lucro = receitas - despesas;
+
+      document.getElementById('total-receitas').textContent = 'R$ ' + receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      document.getElementById('total-despesas').textContent = 'R$ ' + despesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      document.getElementById('lucro-liquido').textContent = 'R$ ' + lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+      updateCharts();
+    }
+
+    // Gráficos
+    let revenueChart, profitChart, clusterChart, channelChart;
+
+    function updateCharts() {
+      const now = new Date();
+      const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const labels = Array.from({length: days}, (_,i) => i+1);
+
+      const daily = labels.map(day => {
+        const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const dayData = transactions.filter(t => t.date === date);
+        const entradas = dayData.filter(t => t.type === 'entrada').reduce((a,b) => a + parseFloat(b.amount), 0);
+        const saidas = dayData.filter(t => t.type === 'saida').reduce((a,b) => a + parseFloat(b.amount), 0);
+        return { entradas, saidas };
+      });
+
+      // Receitas vs Despesas
+      if (revenueChart) revenueChart.destroy();
+      revenueChart = new Chart(document.getElementById('revenueChart'), {
+        type: 'bar',
+         {
+          labels,
+          datasets: [
+            { label: 'Entradas',  daily.map(d => d.entradas), backgroundColor: '#1DB954' },
+            { label: 'Despesas',  daily.map(d => d.saidas), backgroundColor: '#e53935' }
+          ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      // Lucro
+      const lucros = daily.map(d => d.entradas - d.saidas);
+      let acumulado = 0;
+      const acum = lucros.map(l => { acum += l; return acum; });
+
+      if (profitChart) profitChart.destroy();
+      profitChart = new Chart(document.getElementById('profitChart'), {
+        type: 'line',
+         {
+          labels,
+          datasets: [{ label: 'Lucro Líquido',  acum, borderColor: '#D4AF37', backgroundColor: 'rgba(212, 175, 55, 0.1)', fill: true, tension: 0.3 }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      // Clusterização
+      const clusterCounts = { 'Baixo Valor': 0, 'Médio Valor': 0, 'Alto Valor': 0 };
+      clients.forEach(c => {
+        const score = (parseFloat(c.rendaBruta) || 0) * 0.7 + (parseInt(c.frequenciaCompras) || 0) * 50;
+        if (score < 15000) clusterCounts['Baixo Valor']++;
+        else if (score < 30000) clusterCounts['Médio Valor']++;
+        else clusterCounts['Alto Valor']++;
+      });
+
+      if (clusterChart) clusterChart.destroy();
+      clusterChart = new Chart(document.getElementById('clusterChart'), {
+        type: 'pie',
+         {
+          labels: Object.keys(clusterCounts),
+          datasets: [{  Object.values(clusterCounts), backgroundColor: ['#e53935', '#FF9800', '#1DB954'] }]
+        }
+      });
+
+      // Canais
+      const channels = {};
+      clients.forEach(c => { channels[c.ondeEncontrou] = (channels[c.ondeEncontrou] || 0) + 1; });
+
+      if (channelChart) channelChart.destroy();
+      channelChart = new Chart(document.getElementById('channelChart'), {
+        type: 'bar',
+         {
+          labels: Object.keys(channels),
+          datasets: [{ label: 'Clientes',  Object.values(channels), backgroundColor: '#D4AF37' }]
+        }
+      });
+    }
+
+    // Exportação para CSV
+    function exportToCSV(data, headers, filename) {
+      const csv = [
+        headers.join(';'),
+        ...data.map(row => row.map(cell => 
+          typeof cell === 'number' || /^\d+(\.\d+)?$/.test(cell) ? 
+            cell.toString().replace('.', ',') : `"${cell}"`
+        ).join(';'))
+      ].join('\n');
+
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Exportar finanças
+    document.getElementById('export-finance').addEventListener('click', () => {
+      const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Valor (R$)'];
+      const data = transactions.map(t => [
+        t.date.split('-').reverse().join('/'),
+        t.type === 'entrada' ? 'Entrada' : 'Saída',
+        t.description,
+        t.category,
+        parseFloat(t.amount).toFixed(2)
+      ]);
+      exportToCSV(data, headers, `financas_${new Date().toISOString().slice(0,10)}.csv`);
+    });
+
+    // Exportar clientes
+    document.getElementById('export-client').addEventListener('click', () => {
+      const headers = [
+        'Nome', 'Estado Civil', 'Filhos', 'Escolaridade',
+        'Tem Cartão', 'Renda Bruta', 'Idade', 'É Comprador',
+        'Frequência de Compras', 'Tipo de Compra', 'Onde Encontrou'
+      ];
+      const data = clients.map(c => [
+        c.nome,
+        c.estadoCivil,
+        c.filhos,
+        c.escolaridade,
+        c.temCartao ? 'Sim' : 'Não',
+        parseFloat(c.rendaBruta).toFixed(2),
+        c.idade,
+        c.eComprador ? 'Sim' : 'Não',
+        c.frequenciaCompras,
+        c.tipoCompra,
+        c.ondeEncontrou
+      ]);
+      exportToCSV(data, headers, `clientes_${new Date().toISOString().slice(0,10)}.csv`);
+    });
+
+    // Auxiliares
+    function formatDate(dateStr) {
+      return dateStr.split('-').reverse().join('/');
+    }
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
+        tab.classList.add('active');
+        const tabId = tab.getAttribute('data-tab');
+        document.getElementById(tabId).style.display = 'block';
+        if (tabId === 'graficos') updateCharts();
+      });
+    });
+
+    // Inicializar
+    window.onload = () => {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('date').value = today;
+      renderTransactions();
+      renderClientList();
+      updateFinancialSummary();
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
